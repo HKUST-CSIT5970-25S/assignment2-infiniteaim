@@ -2,7 +2,7 @@ package hk.ust.csit5970;
 
 import java.io.IOException;
 import java.util.Arrays;
-
+import java.util.Iterator;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.GnuParser;
@@ -39,7 +39,6 @@ public class BigramFrequencyPairs extends Configured implements Tool {
 	 */
 	private static class MyMapper extends
 			Mapper<LongWritable, Text, PairOfStrings, IntWritable> {
-
 		// Reuse objects to save overhead of object creation.
 		private static final IntWritable ONE = new IntWritable(1);
 		private static final PairOfStrings BIGRAM = new PairOfStrings();
@@ -49,10 +48,17 @@ public class BigramFrequencyPairs extends Configured implements Tool {
 				throws IOException, InterruptedException {
 			String line = ((Text) value).toString();
 			String[] words = line.trim().split("\\s+");
-			
-			/*
-			 * TODO: Your implementation goes here.
-			 */
+			for (int i = 0; i < words.length - 1; i++) {
+				// skip empty words
+				if (words[i].length() == 0)
+					continue;
+				
+				BIGRAM.set(words[i], words[i + 1]);
+				context.write(BIGRAM, ONE);
+				// emit marginal count
+				BIGRAM.set(words[i], "");
+				context.write(BIGRAM, ONE);
+			}
 		}
 	}
 
@@ -64,6 +70,7 @@ public class BigramFrequencyPairs extends Configured implements Tool {
 
 		// Reuse objects.
 		private final static FloatWritable VALUE = new FloatWritable();
+		private final static FloatWritable MARGINAL = new FloatWritable();
 
 		@Override
 		public void reduce(PairOfStrings key, Iterable<IntWritable> values,
@@ -71,6 +78,22 @@ public class BigramFrequencyPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			Iterator<IntWritable> iter = values.iterator();
+			VALUE.set(0);
+			
+			while(iter.hasNext())
+				VALUE.set(VALUE.get() + iter.next().get());
+			
+			if (key.getRightElement().toString().equals("")){
+				// set up marginal count for each word
+				MARGINAL.set((int) VALUE.get()); 
+				context.write(key, VALUE);
+			} else {
+				// count the frequency: # occurence / # marginal
+				VALUE.set(VALUE.get() / MARGINAL.get());
+				context.write(key, VALUE);
+			}
+
 		}
 	}
 	
@@ -84,6 +107,13 @@ public class BigramFrequencyPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			Iterator<IntWritable> iter = values.iterator();
+			SUM.set(0);
+			
+			while (iter.hasNext())
+				SUM.set(SUM.get() + iter.next().get());
+				
+			context.write(key, SUM);
 		}
 	}
 

@@ -53,6 +53,21 @@ public class CORPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			// 统计每行中每个单词的出现次数
+			while (doc_tokenizer.hasMoreTokens()) {
+                String token = doc_tokenizer.nextToken();
+                Integer count = word_set.get(token);
+                if (count == null) {
+                    count = 0;
+                }
+                word_set.put(token, count + 1);
+            }
+			
+			// 输出每个单词和它的频率
+			for (Map.Entry<String, Integer> entry : word_set.entrySet()) {
+				context.write(new Text(entry.getKey()), 
+							 new IntWritable(entry.getValue()));
+			}
 		}
 	}
 
@@ -66,6 +81,11 @@ public class CORPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			int sum = 0;
+			for (IntWritable val : values) {
+				sum += val.get();
+			}
+			context.write(key, new IntWritable(sum));
 		}
 	}
 
@@ -74,13 +94,28 @@ public class CORPairs extends Configured implements Tool {
 	 * TODO: Write your second-pass Mapper here.
 	 */
 	public static class CORPairsMapper2 extends Mapper<LongWritable, Text, PairOfStrings, IntWritable> {
+		private static final IntWritable ONE = new IntWritable(1);
 		@Override
 		protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
 			// Please use this tokenizer! DO NOT implement a tokenizer by yourself!
+			Set<String> uniqueWords = new HashSet<String>();
 			StringTokenizer doc_tokenizer = new StringTokenizer(value.toString().replaceAll("[^a-z A-Z]", " "));
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			// 收集一行中的所有不重复单词
+			while (doc_tokenizer.hasMoreTokens()) {
+				uniqueWords.add(doc_tokenizer.nextToken());
+			}
+			
+			// 为每对单词生成一个二元词组
+			String[] words = uniqueWords.toArray(new String[0]);
+			Arrays.sort(words);
+			for (int i = 0; i < words.length; i++) {
+				for (int j = i + 1; j < words.length; j++) {
+					context.write(new PairOfStrings(words[i], words[j]), ONE);
+				}
+			}
 		}
 	}
 
@@ -93,6 +128,11 @@ public class CORPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			int sum = 0;
+			for (IntWritable val : values) {
+				sum += val.get();
+			}
+			context.write(key, new IntWritable(sum));
 		}
 	}
 
@@ -145,6 +185,19 @@ public class CORPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			 // 计算二元词组的频率
+			 int pairFreq = 0;
+			 for (IntWritable val : values) {
+				 pairFreq += val.get();
+			 }
+			 
+			 // 从预加载的word_total_map获取单个词的频率
+			 int freqA = word_total_map.get(key.getLeftElement());
+			 int freqB = word_total_map.get(key.getRightElement());
+			 
+			 // 计算相关系数
+			 double cor = (double)pairFreq / (freqA * freqB);
+			 context.write(key, new DoubleWritable(cor));
 		}
 	}
 
